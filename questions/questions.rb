@@ -11,6 +11,15 @@ class QuestionsDB < SQLite3::Database
   end
 end
 
+class Questions2DB < SQLite3::Database
+  include Singleton
+  
+  def initialize 
+    super('questions2.db')
+    self.results_as_hash = true
+  end
+end 
+
 class User
   attr_reader :id
   attr_accessor :fname, :lname
@@ -199,16 +208,37 @@ class QuestionFollow
   end
   
   def self.followers_for_question_id(question_id)
-    data = QuestionsDB.instance.execute(<<-SQL, question_id)
+    data = Questions2DB.instance.execute(<<-SQL, question_id)
       SELECT *
       FROM question_follows
       JOIN questions ON
-      question_follows.question_id = question.id
+      question_follows.question_id = questions.id
       JOIN users ON
       question_follows.user_id = users.id
       WHERE questions.id = ?
-    
     SQL
+    result = []
+    data.each do |datum|
+      result << User.new(datum)
+    end
+    result
+  end
+  
+  def self.followed_questions_for_user_id(user_id)
+    data = Questions2DB.instance.execute(<<-SQL, user_id)
+      SELECT *
+      FROM question_follows
+      JOIN questions ON
+      question_follows.user_id = questions.author_id
+      JOIN users ON
+      question_follows.user_id = users.id
+      WHERE users.id = ?
+    SQL
+    result = []
+    data.each do |datum|
+    result << Question.new(datum)
+  end
+  result
   end
   
 end
