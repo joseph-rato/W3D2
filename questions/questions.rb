@@ -96,6 +96,18 @@ class Reply
   attr_accessor :question_id, :previous_id, :user_id, :body
   
   
+  def self.find_by_id(id)
+    data = QuestionsDB.instance.execute(<<-SQL, id)
+      SELECT
+      *
+      FROM 
+      replies
+      WHERE 
+      id = ?
+    SQL
+    Reply.new(data.first)
+  end 
+  
   def self.find_by_user_id(user_id)
      data = QuestionsDB.instance.execute(<<-SQL, user_id)
       SELECT 
@@ -142,7 +154,7 @@ class Reply
     Question.find_by_question_id(@question_id)
   end 
   
-  def parent_reply
+  def first_reply
     data = QuestionsDB.instance.execute(<<-SQL, @question_id)
       SELECT
         *
@@ -154,18 +166,49 @@ class Reply
     Reply.new(data.first)
   end 
   
-  def child_replies
-    data = QuestionsDB.instance.execute(<<-SQL, @question_id)
-    SELECT
-      *
-    FROM
-      replies 
-    WHERE 
-      question_id = ?  
-    SQL
-    raise 'data is wrong' if data.length < 2 
-    Reply.new(data[1])
+  def parent_reply
+    raise 'this is the first reply' if @previous_id == nil 
+    return Reply.find_by_id(@previous_id)
   end 
   
+  def child_replies
+    data = QuestionsDB.instance.execute(<<-SQL, @id)
+      SELECT
+      * 
+      FROM 
+      replies
+      WHERE previous_reply_id = ?
+    SQL
+    all_replies = []
+    data.each do |datum|
+      all_replies << Reply.new(datum)
+    end 
+    all_replies
+  end 
+  
+  
+end
+
+class QuestionFollow
+  attr_reader :id, :user_id, :question_id
+  
+  def initialize(options)
+    @id = options['id']
+    @user_id = options['user_id']
+    @question_id = options['question_id']
+  end
+  
+  def self.followers_for_question_id(question_id)
+    data = QuestionsDB.instance.execute(<<-SQL, question_id)
+      SELECT *
+      FROM question_follows
+      JOIN questions ON
+      question_follows.question_id = question.id
+      JOIN users ON
+      question_follows.user_id = users.id
+      WHERE questions.id = ?
+    
+    SQL
+  end
   
 end
