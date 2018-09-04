@@ -1,3 +1,6 @@
+PRAGMA foreign_keys = ON;
+
+
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
   fname VARCHAR(255) NOT NULL,
@@ -11,13 +14,13 @@ CREATE TABLE questions (
   asso_author INTEGER NOT NULL,
   
   FOREIGN KEY (asso_author) REFERENCES users(id)
-)
+);
 
 CREATE TABLE question_follows (
   id INTEGER PRIMARY KEY,
   user_id INTEGER NOT NULL,
   question_id INTEGER NOT NULL
-)
+);
 
 CREATE TABLE replies (
   id INTEGER PRIMARY KEY,
@@ -28,9 +31,8 @@ CREATE TABLE replies (
   
   FOREIGN KEY (question_id) REFERENCES questions(id),
   FOREIGN KEY (previous_reply_id) REFERENCES replies(id),
-  FOREIGN KEY (user_id) REFERNECES users(id)
-  
-)
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
 
 
 CREATE TABLE question_likes (
@@ -41,6 +43,11 @@ CREATE TABLE question_likes (
   
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (question_id) REFERENCES questions(id)
-)
+);
+
+INSERT INTO 
+  users(id, fname, lname)
+VALUES 
+  (1, 'joe', 'smith');
 
 
