@@ -31,30 +31,45 @@ class User
     people 
   end
   
+  def authored_questions
+    questions = Question.find_by_author_id(@id)
+  end
+  
+  def authored_replies
+    replies = Reply.find_by_user_id(@id)  
+  end
+  
   def self.find_by_id(id)
     user = QuestionsDB.instance.execute(<<-SQL, id)
-      SELECT * FROM users
+      SELECT * 
+      FROM users
       WHERE id = ?
       SQL
       User.new(user.first)
-    end
+  end
 
 end
-  # why this is not working ^
-  # def self.find_by_id(id)
-  #   data = QuestionsDB.instance.execute("SELECT * FROM users WHERE id = #{id}").first
-  #   User.new(data)
-  # end
-  # why is this returning an array of data? and not one answer when we know it will be one answer
-
-# end
 
 class Question 
+  
   attr_reader :id 
   attr_accessor :body, :title, :asso_author
   
+  def self.find_by_author_id(author_id)
+    questions = QuestionsDB.instance.execute(<<-SQL, author_id)
+      SELECT * 
+      FROM questions
+      WHERE asso_author = ?
+      SQL
+      result = []
+    questions.each do |datum|
+      result << Question.new(datum)
+    end 
+    result
+  end 
+  
   def self.find_by_question(id)
-    data = QuestionDB.instance.execute("SELECT * FROM questions WHERE id = #{id}").first
+    data = QuestionsDB.instance.execute("SELECT * FROM questions WHERE id = #{id}").first
     Question.new(data)
   end 
   
@@ -66,6 +81,91 @@ class Question
     @body = options['body']
   end 
   
+  def author
+    User.find_by_id(@asso_author)
+  end
   
-
+  def replies
+    Reply.find_by_question_id(@id)
+  end
+  
 end 
+
+class Reply 
+  attr_reader :id 
+  attr_accessor :question_id, :previous_id, :user_id, :body
+  
+  
+  def self.find_by_user_id(user_id)
+     data = QuestionsDB.instance.execute(<<-SQL, user_id)
+      SELECT 
+        *
+      FROM 
+        replies 
+      WHERE 
+        user_id = ? 
+     SQL
+     result = []
+     data.each do |datum|
+       result << Reply.new(datum)
+     end 
+     result
+  end
+  
+  def self.find_by_question_id(question_id)
+    data = QuestionsDB.instance.execute(<<-SQL, question_id)
+      SELECT * 
+      FROM replies
+      WHERE question_id = ?
+    SQL
+    
+    result = []
+    data.each do |datum|
+      result << Reply.new(datum)
+    end
+    result
+  end
+  
+  def initialize(options)
+    @id = options['id']
+    @question_id = options['question_id']
+    @previous_id = options['previous_reply_id']
+    @user_id = options['user_id']
+    @body = options['body']
+  end 
+  
+  def author
+    User.find_by_id(@user_id)
+  end
+  
+  def question 
+    Question.find_by_question_id(@question_id)
+  end 
+  
+  def parent_reply
+    data = QuestionsDB.instance.execute(<<-SQL, @question_id)
+      SELECT
+        *
+      FROM
+        replies 
+      WHERE 
+        question_id = ? AND previous_reply_id IS NULL 
+    SQL
+    Reply.new(data.first)
+  end 
+  
+  def child_replies
+    data = QuestionsDB.instance.execute(<<-SQL, @question_id)
+    SELECT
+      *
+    FROM
+      replies 
+    WHERE 
+      question_id = ?  
+    SQL
+    raise 'data is wrong' if data.length < 2 
+    Reply.new(data[1])
+  end 
+  
+  
+end
