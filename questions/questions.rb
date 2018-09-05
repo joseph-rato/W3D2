@@ -6,7 +6,7 @@ class QuestionsDB < SQLite3::Database
   
   def initialize
     super('questions.db')
-    # self.type_translation = true
+    self.type_translation = true
     self.results_as_hash = true
   end
 end
@@ -16,6 +16,7 @@ class Questions2DB < SQLite3::Database
   
   def initialize 
     super('questions2.db')
+    self.type_translation = true
     self.results_as_hash = true
   end
 end 
@@ -46,6 +47,10 @@ class User
   
   def authored_replies
     replies = Reply.find_by_user_id(@id)  
+  end
+  
+  def followed_questions
+    QuestionFollow.followed_questions_for_user_id(@id)
   end
   
   def self.find_by_id(id)
@@ -82,7 +87,11 @@ class Question
     Question.new(data)
   end 
   
-  
+  def self.most_followed(n)
+    QuestionFollow.most_followed_questions(n)
+  end 
+    
+    
   def initialize(options)
     @id = options['id']
     @title = options['title']
@@ -96,6 +105,10 @@ class Question
   
   def replies
     Reply.find_by_question_id(@id)
+  end
+  
+  def followers
+    QuestionFollowers.followers_for_question_id(@id)
   end
   
 end 
@@ -201,21 +214,15 @@ end
 class QuestionFollow
   attr_reader :id, :user_id, :question_id
   
-  def initialize(options)
-    @id = options['id']
-    @user_id = options['user_id']
-    @question_id = options['question_id']
-  end
-  
   def self.followers_for_question_id(question_id)
     data = Questions2DB.instance.execute(<<-SQL, question_id)
-      SELECT *
-      FROM question_follows
-      JOIN questions ON
-      question_follows.question_id = questions.id
-      JOIN users ON
-      question_follows.user_id = users.id
-      WHERE questions.id = ?
+    SELECT *
+    FROM question_follows
+    JOIN questions ON
+    question_follows.question_id = questions.id
+    JOIN users ON
+    question_follows.user_id = users.id
+    WHERE questions.id = ?
     SQL
     result = []
     data.each do |datum|
@@ -226,19 +233,76 @@ class QuestionFollow
   
   def self.followed_questions_for_user_id(user_id)
     data = Questions2DB.instance.execute(<<-SQL, user_id)
-      SELECT *
-      FROM question_follows
-      JOIN questions ON
-      question_follows.user_id = questions.author_id
-      JOIN users ON
-      question_follows.user_id = users.id
-      WHERE users.id = ?
+    SELECT *
+    FROM question_follows
+    JOIN questions ON
+    question_follows.question_id = questions.id
+    -- JOIN users ON
+    -- question_follows.user_id = users.id
+    WHERE question_follows.user_id = ?
     SQL
     result = []
     data.each do |datum|
-    result << Question.new(datum)
-  end
-  result
+      result << Question.new(datum)
+    end
+    result
   end
   
+  def self.most_followed_questions(n)
+    n ||= 1 
+    data = Questions2DB.instance.execute(<<-SQL, n)
+      SELECT 
+      question_id 
+      FROM question_follows
+      GROUP BY question_id
+      ORDER BY count(question_id) DESC 
+      LIMIT ?
+    SQL
+    result = []
+    data.each do |datum|
+      result << Question.find_by_question(datum['question_id'])
+    end
+    result
+  end
+  
+  def initialize(options)
+    @id = options['id']
+    @user_id = options['user_id']
+    @question_id = options['question_id']
+  end
+end
+
+class QuestionLike
+  attr_reader :id, :user_id, :question_id
+  
+  def initialize(options) 
+    @id = options['id']
+    @user_id = options['user_id']
+    @question_id = options['question_id']
+  end
+  
+  def self.likers_for_question_id(question_id)
+    data = Questions2DB.instance.execute(<<-SQL, question_id)
+      SELECT user_id
+      FROM question_likes
+      WHERE question_id = ?
+      GROUP BY user_id
+    SQL
+    result = []
+    data.each do |datum|
+      result << User.find_by_id(datum['user_id'])
+    end
+    result
+  end
+  
+  def self.num_likes_for_question_id(question_id)
+    data = Questions2DB.instance.execute(<<-SQL, question_id)
+      SELECT COUNT(user_id) AS user_count
+      FROM question_likes
+      GROUP BY question_id
+      HAVING question_id = ?
+    SQL
+    raise "You got no likes" if data.empty?
+    data.first['user_count']
+  end
 end
