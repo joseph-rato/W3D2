@@ -41,6 +41,15 @@ class User
     people 
   end
   
+  def self.find_by_id(id)
+    user = QuestionsDB.instance.execute(<<-SQL, id)
+    SELECT * 
+    FROM users
+    WHERE id = ?
+    SQL
+    User.new(user.first)
+  end
+  
   def authored_questions
     questions = Question.find_by_author_id(@id)
   end
@@ -53,13 +62,9 @@ class User
     QuestionFollow.followed_questions_for_user_id(@id)
   end
   
-  def self.find_by_id(id)
-    user = QuestionsDB.instance.execute(<<-SQL, id)
-      SELECT * 
-      FROM users
-      WHERE id = ?
-      SQL
-      User.new(user.first)
+  
+  def liked_questions
+    QuestionLike.liked_questions_for_user_id(@id)
   end
 
 end
@@ -109,6 +114,14 @@ class Question
   
   def followers
     QuestionFollowers.followers_for_question_id(@id)
+  end
+  
+  def likers
+    QuestionLike.likers_for_question_id(@id)
+  end
+  
+  def num_likes
+    QuestionLike.num_likes_for_question_id(@id)
   end
   
 end 
@@ -304,5 +317,16 @@ class QuestionLike
     SQL
     raise "You got no likes" if data.empty?
     data.first['user_count']
+  end
+  
+  def self.liked_questions_for_user_id(user_id)
+    data = Questions2DB.instance.execute(<<-SQL, user_id)
+      SELECT COUNT(question_id) AS question_count
+      FROM question_likes
+      WHERE user_id = ?
+      GROUP BY user_id
+    SQL
+    raise "You havn't liked any questions" if data.empty?
+    data.first['question_count']
   end
 end
